@@ -101,7 +101,7 @@ class PersistAsyncJournalPerfSpec extends TestKit(ActorSystem("test")) with Flat
   }
 
   it should s"write $messagesNr messages" in {
-    val stopwatch = (new Stopwatch).start()
+    val stopwatch = Stopwatch.createStarted()
     
     messages foreach { m => actor ! m }
 
@@ -158,7 +158,7 @@ class PersistAsyncJournalPerfSpec extends TestKit(ActorSystem("test")) with Flat
   }
 
   def timed(block: => Unit): Stopwatch = {
-    val stopwatch = (new Stopwatch).start()
+    val stopwatch = Stopwatch.createStarted()
     block
     stopwatch.stop()
   }

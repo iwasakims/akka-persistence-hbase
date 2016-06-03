@@ -12,17 +12,19 @@ parallelExecution in Test := false
 
 // dependencies ---------------------------------------------------------------
 
+resolvers += "cloudera cdh" at "https://repository.cloudera.com/artifactory/cloudera-repos"
+
 resolvers += "akka snapshots" at "http://repo.akka.io/snapshots"
 
 resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
 
 val akkaVersion = "2.3.4"
 
-val hadoopVersion = "1.2.1"
+val hadoopVersion = "2.6.0-cdh5.7.0"
 
-val hbaseVersion = "0.98.3-hadoop1"
+val hbaseVersion = "1.2.0-cdh5.7.0"
 
-libraryDependencies += "org.apache.hadoop" % "hadoop-core"   % hadoopVersion
+libraryDependencies += "org.apache.hadoop" % "hadoop-common"   % hadoopVersion
 
 libraryDependencies += "org.apache.hadoop" % "hadoop-client" % hadoopVersion
 
@@ -30,7 +32,7 @@ libraryDependencies += "org.apache.hbase"  % "hbase-common"  % hbaseVersion % "c
 
 libraryDependencies += "org.apache.hbase"  % "hbase-client"  % hbaseVersion % "compile"
 
-libraryDependencies += ("org.hbase"        % "asynchbase"    % "1.5.0")
+libraryDependencies += ("org.hbase"        % "asynchbase"    % "1.7.1")
   .exclude("org.slf4j", "log4j-over-slf4j")
   .exclude("org.slf4j", "jcl-over-slf4j")
 
