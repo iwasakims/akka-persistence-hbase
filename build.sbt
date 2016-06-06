@@ -18,7 +18,7 @@ resolvers += "akka snapshots" at "http://repo.akka.io/snapshots"
 
 resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
 
-val akkaVersion = "2.3.4"
+val akkaVersion = "2.4.4"
 
 val hadoopVersion = "2.6.0-cdh5.7.0"
 
@@ -38,7 +38,9 @@ libraryDependencies += ("org.hbase"        % "asynchbase"    % "1.7.1")
 
 libraryDependencies += "org.slf4j"            % "slf4j-log4j12"                 % "1.6.0"     % "provided"
 
-libraryDependencies += "com.typesafe.akka"   %% "akka-persistence-experimental" % akkaVersion % "compile"
+libraryDependencies += "com.typesafe.akka"   %% "akka-persistence" % akkaVersion % "compile"
+
+libraryDependencies += "com.typesafe.akka"   %% "akka-persistence-query-experimental" % akkaVersion % "compile"
 
 libraryDependencies += "com.typesafe.akka"   %% "akka-testkit"                  % akkaVersion % "test"
 

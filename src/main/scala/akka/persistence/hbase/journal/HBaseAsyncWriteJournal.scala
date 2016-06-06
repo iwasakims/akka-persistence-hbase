@@ -1,10 +1,11 @@
 package akka.persistence.hbase.journal
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.persistence.AtomicWrite
 import akka.persistence.hbase.common._
 import akka.persistence.hbase.journal.Operator.AllOpsSubmitted
 import akka.persistence.journal.AsyncWriteJournal
-import akka.persistence.{PersistenceSettings, PersistentConfirmation, PersistentId, PersistentRepr}
+import akka.persistence.{PersistenceSettings, PersistentRepr}
 import akka.serialization.SerializationExtension
 import com.google.common.base.Stopwatch
 import org.apache.hadoop.hbase.client.{HTable, Scan}
@@ -13,6 +14,7 @@ import org.apache.hadoop.hbase.filter._
 
 import scala.collection.immutable
 import scala.concurrent._
+import scala.util.Try
 
 /**
  * Asyncronous HBase Journal.
@@ -53,25 +55,30 @@ class HBaseAsyncWriteJournal extends Actor with ActorLogging
 
   // journal plugin api impl -------------------------------------------------------------------------------------------
 
-  override def asyncWriteMessages(persistentBatch: immutable.Seq[PersistentRepr]): Future[Unit] = {
+  override def asyncWriteMessages(persistentBatch: immutable.Seq[AtomicWrite]): Future[Seq[Try[Unit]]] = {
     log.debug(s"Write async for {} presistent messages", persistentBatch.size)
+
+ 
     val watch = Stopwatch.createStarted()
 
-    val futures = persistentBatch map { p =>
-      import p._
-
-//      log.debug("Putting into: {}" , RowKey(selectPartition(sequenceNr), persistenceId, sequenceNr).toKeyString)
-      executePut(
-        RowKey(selectPartition(sequenceNr), persistenceId, sequenceNr).toBytes,
-        Array(PersistenceId,          SequenceNr,          Marker,                  Message),
-        Array(toBytes(persistenceId), toBytes(sequenceNr), toBytes(AcceptedMarker), persistentToBytes(p))
-      )
+    val futures = persistentBatch.flatMap { aw =>
+      if (aw.payload.length > 1) {
+        throw new UnsupportedOperationException("not yet support persistAll.");
+      }
+      aw.payload.map { p =>
+        // log.debug("Putting into: {}" , RowKey(selectPartition(sequenceNr), persistenceId, sequenceNr).toKeyString)
+        executePut(
+          RowKey(selectPartition(p.sequenceNr), p.persistenceId, p.sequenceNr).toBytes,
+          Array(PersistenceId,          SequenceNr,          Marker,                  Message),
+          Array(toBytes(p.persistenceId), toBytes(p.sequenceNr), toBytes(AcceptedMarker), persistentToBytes(p))
+        )
+      }
     }
 
     flushWrites()
     Future.sequence(futures) map { case _ =>
       log.debug("Completed writing {} messages (took: {})", persistentBatch.size, watch.stop()) // todo better failure / success?
-      if (publishTestingEvents) context.system.eventStream.publish(FinishedWrites(persistentBatch.size))
+      if (publishTestingEvents) context.system.eventStream.publish(FinishedWrites(persistentBatch.length))
     }
   }
 
@@ -130,47 +137,7 @@ class HBaseAsyncWriteJournal extends Actor with ActorLogging
     }
   }
 
-  @deprecated("Will be removed")
-  override def asyncWriteConfirmations(confirmations: immutable.Seq[PersistentConfirmation]): Future[Unit] = {
-    log.debug(s"AsyncWriteConfirmations for {} messages", confirmations.size)
-    val watch = Stopwatch.createStarted()
-
-    val fs = confirmations map { confirm =>
-      confirmAsync(confirm.persistenceId, confirm.sequenceNr, confirm.channelId)
-    }
-
-    flushWrites()
-    Future.sequence(fs) map { case _ =>
-      log.debug("Completed confirming {} messages (took: {})", confirmations.size, watch.stop()) // todo better failure / success?
-    }
-  }
-
-  @deprecated("Will be removed")
-  override def asyncDeleteMessages(messageIds: immutable.Seq[PersistentId], permanent: Boolean): Future[Unit] = {
-    log.debug(s"Async delete [{}] messages, premanent: {}", messageIds.size, permanent)
-
-    val doDelete = deleteFunctionFor(permanent)
-
-    val deleteFutures = for {
-      messageId <- messageIds
-      rowId = RowKey(selectPartition(messageId.sequenceNr), messageId.persistenceId, messageId.sequenceNr)
-    } yield doDelete(rowId.toBytes)
-
-    flushWrites()
-    Future.sequence(deleteFutures)
-  }
-
   // end of journal plugin api impl ------------------------------------------------------------------------------------
-
-  private def confirmAsync(persistenceId: String, sequenceNr: Long, channelId: String): Future[Unit] = {
-      log.debug(s"Confirming async for persistenceId: {}, sequenceNr: {} and channelId: {}", persistenceId, sequenceNr, channelId)
-
-      executePut(
-        RowKey(sequenceNr, persistenceId, sequenceNr).toBytes,
-        Array(Marker),
-        Array(confirmedMarkerBytes(channelId))
-      )
-    }
 
   private def deleteFunctionFor(permanent: Boolean): (Array[Byte]) => Future[Unit] = {
     if (permanent) deleteRow
